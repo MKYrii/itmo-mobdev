@@ -136,6 +136,11 @@ class MainActivity : AppCompatActivity() {
         updateDisplay()
     }
 
+    private fun formatResult(value: Double): String {
+        val rounded = "%.6f".format(java.util.Locale.US, value)
+        return rounded.removeSuffix(".0")
+    }
+
     private fun solve() {
         val operation = viewModel.operation
 
@@ -147,16 +152,19 @@ class MainActivity : AppCompatActivity() {
         val num2: Double = viewModel.secondNumber.toDouble()
 
         if (operation == "plus") {
-            viewModel.displayValue = (num1 + num2).toString().removeSuffix(".0")
-            viewModel.firstNumber = (num1 + num2).toString().removeSuffix(".0")
+            val result = num1 + num2
+            viewModel.displayValue = formatResult(result)
+            viewModel.firstNumber = formatResult(result)
         }
         else if (operation == "minus") {
-            viewModel.displayValue = (num1 - num2).toString().removeSuffix(".0")
-            viewModel.firstNumber = (num1 - num2).toString().removeSuffix(".0")
+            val result = num1 - num2
+            viewModel.displayValue = formatResult(result)
+            viewModel.firstNumber = formatResult(result)
         }
         else if (operation == "multiply") {
-            viewModel.displayValue = (num1 * num2).toString().removeSuffix(".0")
-            viewModel.firstNumber = (num1 * num2).toString().removeSuffix(".0")
+            val result = num1 * num2
+            viewModel.displayValue = formatResult(result)
+            viewModel.firstNumber = formatResult(result)
         }
         else {
             if (num2 == 0.0) {
@@ -164,8 +172,9 @@ class MainActivity : AppCompatActivity() {
                 viewModel.firstNumber = "0"
             }
             else {
-                viewModel.displayValue = (num1 / num2).toString().removeSuffix(".0")
-                viewModel.firstNumber = (num1 / num2).toString().removeSuffix(".0")
+                val result = num1 / num2
+                viewModel.displayValue = formatResult(result)
+                viewModel.firstNumber = formatResult(result)
             }
         }
         viewModel.secondNumber = ""
