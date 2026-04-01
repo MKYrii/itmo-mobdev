@@ -67,6 +67,10 @@ class MainActivity : AppCompatActivity() {
     private fun clickOnDigit(digit: String){
         val currentDisplay = viewModel.displayValue
 
+        if (currentDisplay.startsWith("error")){
+            clear()
+        }
+
         if (currentDisplay == "0"){
             viewModel.displayValue = digit
             if (viewModel.operation == "null") {
@@ -91,6 +95,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun clickOnOperation(operation: String){
+
+        if (viewModel.displayValue.startsWith("error")){
+            clear()
+        }
+
         if (viewModel.operation == "null") {
             viewModel.operation = operation
 
@@ -109,6 +118,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun clickOnDot(){
+
+        if (viewModel.displayValue.startsWith("error")){
+            clear()
+        }
 
 
         if (viewModel.operation == "null") {
