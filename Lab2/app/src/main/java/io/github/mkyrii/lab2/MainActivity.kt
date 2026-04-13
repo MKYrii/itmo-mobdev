@@ -37,7 +37,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.core.database.getStringOrNull
@@ -123,7 +125,7 @@ fun ContactsListScreen() {
 
     // Храним выбранный контакт, изначально null (ничего не выбрано)
     var selectedContact by remember { mutableStateOf<Contact?>(null) }
-
+    HorizontalDivider(thickness = 1.dp, color = Color.Gray)
     // Если переменная selectedContact пустая - показываем список
     if (selectedContact == null) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -137,6 +139,7 @@ fun ContactsListScreen() {
                         }
                         .padding(16.dp)
                 )
+                HorizontalDivider(thickness = 1.dp, color = Color.Gray)
             }
         }
     } else {
