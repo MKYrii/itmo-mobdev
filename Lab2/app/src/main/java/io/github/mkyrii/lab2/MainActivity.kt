@@ -48,7 +48,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             Lab2Theme {
-                // 1. Храним состояние: дали нам разрешение или нет?
                 var hasPermission by remember {
                     mutableStateOf(
                         ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS)
@@ -56,20 +55,17 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                // 2. "Пусковая установка" для запроса разрешения
                 val launcher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
                 ) { isGranted ->
-                    hasPermission = isGranted // Обновляем состояние, экран сам перерисуется
+                    hasPermission = isGranted
                 }
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Box(modifier = Modifier.padding(innerPadding)) {
                         if (hasPermission) {
-                            // 3. Если разрешение есть — показываем список
                             ContactsListScreen()
                         } else {
-                            // 4. Если нет — кнопку запроса (как в задании)
                             PermissionDeniedScreen { launcher.launch(Manifest.permission.READ_CONTACTS) }
                         }
                     }
@@ -86,7 +82,6 @@ data class Contact(val name: String?, val phoneNumber: String?, val email: Strin
 fun Context.fetchAllContacts(): List<Contact> {
     Log.d("FETCH", "fetchAllContacts called")
 
-    // Используем CommonDataKinds.Phone.CONTENT_URI (с буквой S)
     contentResolver.query(
         ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
         null, null, null, null
@@ -94,7 +89,6 @@ fun Context.fetchAllContacts(): List<Contact> {
         if (cursor == null) return emptyList()
         return buildList {
             while (cursor.moveToNext()) {
-                // Везде добавляем 's' к CommonDataKinds
                 val name = cursor.getStringOrNull(cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME))
                 val phoneNumber = cursor.getStringOrNull(cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER))
                 val email = cursor.getStringOrNull(cursor.getColumnIndex(ContactsContract.CommonDataKinds.Email.ADDRESS))
@@ -110,11 +104,11 @@ fun Context.fetchAllContacts(): List<Contact> {
 fun PermissionDeniedScreen(onGrantClick: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center, // Центрируем по вертикали
-        horizontalAlignment = Alignment.CenterHorizontally // Центрируем по горизонтали
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(text = stringResource(R.string.no_permission))
-        Spacer(modifier = Modifier.height(16.dp)) // Небольшой отступ
+        Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onGrantClick) {
             Text(text = stringResource(R.string.grant_permission))
         }
@@ -124,13 +118,13 @@ fun PermissionDeniedScreen(onGrantClick: () -> Unit) {
 @Composable
 fun ContactsListScreen() {
     val context = LocalContext.current
-    // Запоминаем список, чтобы не перечитывать его при каждом клике (минус лаг)
+    // Запоминаем список, чтобы не перечитывать его при каждом клике
     val contacts by remember { mutableStateOf(context.fetchAllContacts()) }
 
-    // Храним выбранный контакт. Изначально — null (ничего не выбрано)
+    // Храним выбранный контакт, изначально null (ничего не выбрано)
     var selectedContact by remember { mutableStateOf<Contact?>(null) }
 
-    // Если переменная selectedContact пустая — показываем список
+    // Если переменная selectedContact пустая - показываем список
     if (selectedContact == null) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(contacts) { contact ->
@@ -139,8 +133,6 @@ fun ContactsListScreen() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            // КЛИК: записываем контакт в переменную.
-                            // Compose увидит это и перерисует экран (выполнит ветку else)
                             selectedContact = contact
                         }
                         .padding(16.dp)
@@ -148,19 +140,16 @@ fun ContactsListScreen() {
             }
         }
     } else {
-        // Если контакт выбран — показываем его детали
         Column(
             modifier = Modifier.fillMaxSize().padding(16.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Берем данные из selectedContact
             Text(
                 text = stringResource(
                     R.string.contact_details,
                     selectedContact?.name ?: "—",
                     selectedContact?.phoneNumber ?: "—",
-                    // Если почта совпадает с номером телефона — выводим "—"
                     if (selectedContact?.email == selectedContact?.phoneNumber || selectedContact?.email == null)
                         "—"
                     else
@@ -171,7 +160,6 @@ fun ContactsListScreen() {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Кнопка возврата: просто обнуляем переменную
             Button(onClick = { selectedContact = null }) {
                 Text("Назад к списку")
             }
