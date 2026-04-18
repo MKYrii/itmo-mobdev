@@ -43,6 +43,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.core.database.getStringOrNull
+ import android.app.Activity
+ import android.content.Intent
+ import android.net.Uri
+ import android.provider.Settings
+ import androidx.core.app.ActivityCompat
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,14 +70,52 @@ class MainActivity : ComponentActivity() {
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Box(modifier = Modifier.padding(innerPadding)) {
-                        if (hasPermission) {
-                            ContactsListScreen()
-                        } else {
-                            PermissionDeniedScreen { launcher.launch(Manifest.permission.READ_CONTACTS) }
-                        }
+                        ContactsPermissionWrapper()
                     }
                 }
             }
+        }
+    }
+}
+
+
+@Composable
+fun ContactsPermissionWrapper() {
+    val context = LocalContext.current
+    val activity = context as? Activity
+
+    var hasPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
+                    == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasPermission = isGranted
+    }
+
+    if (hasPermission) {
+        ContactsListScreen()
+    } else {
+        PermissionDeniedScreen {
+            val showRationale = activity?.let {
+                ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.READ_CONTACTS)
+            } ?: false
+
+            if (!showRationale) {
+                launcher.launch(Manifest.permission.READ_CONTACTS)
+
+            } else {
+                launcher.launch(Manifest.permission.READ_CONTACTS)
+            }
+
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", context.packageName, null)
+            }
+            context.startActivity(intent)
         }
     }
 }
