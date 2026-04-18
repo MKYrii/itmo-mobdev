@@ -43,11 +43,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.core.database.getStringOrNull
- import android.app.Activity
- import android.content.Intent
- import android.net.Uri
- import android.provider.Settings
- import androidx.core.app.ActivityCompat
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.core.app.ActivityCompat
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
