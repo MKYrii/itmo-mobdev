@@ -55,19 +55,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             Lab2Theme {
-                var hasPermission by remember {
-                    mutableStateOf(
-                        ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS)
-                                == PackageManager.PERMISSION_GRANTED
-                    )
-                }
-
-                val launcher = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestPermission()
-                ) { isGranted ->
-                    hasPermission = isGranted
-                }
-
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Box(modifier = Modifier.padding(innerPadding)) {
                         ContactsPermissionWrapper()
@@ -110,12 +97,12 @@ fun ContactsPermissionWrapper() {
 
             } else {
                 launcher.launch(Manifest.permission.READ_CONTACTS)
-            }
 
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.fromParts("package", context.packageName, null)
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", context.packageName, null)
+                }
+                context.startActivity(intent)
             }
-            context.startActivity(intent)
         }
     }
 }
