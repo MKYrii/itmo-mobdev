@@ -57,20 +57,22 @@ class ChatsFragment : Fragment() {
     }
 
     fun updateSelectedChat(chat: String?) {
+        if (!::adapter.isInitialized) return
         adapter.updateSelectedChat(chat)
     }
 
     private fun loadChats() {
+        if (!isAdded || view == null) return
         progressBar.visibility = View.VISIBLE
         repository.getChannels(
             onSuccess = { channels ->
-                (requireActivity() as MainActivity).runOnUiThread {
+                runOnUiThreadIfActive {
                     progressBar.visibility = View.GONE
                     adapter.submitList(channels)
                 }
             },
             onError = { errorMsg ->
-                (requireActivity() as MainActivity).runOnUiThread {
+                runOnUiThreadIfActive {
                     progressBar.visibility = View.GONE
                     if (errorMsg.contains("401") || errorMsg.contains("Не авторизован")) {
                         goToLogin()
@@ -82,22 +84,32 @@ class ChatsFragment : Fragment() {
         )
     }
 
+    private fun runOnUiThreadIfActive(block: () -> Unit) {
+        activity?.runOnUiThread {
+            if (isAdded && view != null) {
+                block()
+            }
+        }
+    }
+
     private fun logout() {
         repository.logout(
             onSuccess = {
-                repository.closeWebSocket()
-                // Очищаем Preferences
-                val prefs = (requireActivity() as MainActivity).getPreferencesManager()
-                prefs.clear()
-                // Перезапускаем Activity
-                requireActivity().finish()
-                startActivity(requireActivity().intent)
+                runOnUiThreadIfActive {
+                    repository.closeWebSocket()
+                    val prefs = (requireActivity() as MainActivity).getPreferencesManager()
+                    prefs.clear()
+                    requireActivity().finish()
+                    startActivity(requireActivity().intent)
+                }
             },
             onError = {
-                val prefs = (requireActivity() as MainActivity).getPreferencesManager()
-                prefs.clear()
-                requireActivity().finish()
-                startActivity(requireActivity().intent)
+                runOnUiThreadIfActive {
+                    val prefs = (requireActivity() as MainActivity).getPreferencesManager()
+                    prefs.clear()
+                    requireActivity().finish()
+                    startActivity(requireActivity().intent)
+                }
             }
         )
     }

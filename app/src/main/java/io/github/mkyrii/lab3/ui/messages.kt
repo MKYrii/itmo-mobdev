@@ -64,11 +64,10 @@ class MessagesFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        if (savedInstanceState != null) {
-            channelName = savedInstanceState.getString("channel_name") ?: channelName
-        }
         repository = (requireActivity() as MainActivity).getRepository()
-        channelName = arguments?.getString(CHANNEL_KEY) ?: "1@channel"
+        channelName = arguments?.getString(CHANNEL_KEY)
+            ?: savedInstanceState?.getString("channel_name")
+            ?: "1@channel"
 
         recyclerView = view.findViewById(R.id.rvMessages)
         etMessage = view.findViewById(R.id.etMessage)
@@ -86,8 +85,9 @@ class MessagesFragment : Fragment() {
         }
 
         btnBack.setOnClickListener {
-            if ((requireActivity() as MainActivity).isLandscape()) {
-                (requireActivity() as MainActivity).closeChat()
+            val activity = requireActivity() as MainActivity
+            if (activity.isLandscape()) {
+                activity.closeChat()
             } else {
                 parentFragmentManager.popBackStack()
             }
@@ -148,12 +148,9 @@ class MessagesFragment : Fragment() {
     }
 
     private fun loadMessages() {
-        if (isLoading) return
+        if (isLoading || !isAdded || view == null) return
         isLoading = true
-
-        (requireActivity() as MainActivity).runOnUiThread {
-            progressBar.visibility = View.VISIBLE
-        }
+        runOnUiThreadIfActive { progressBar.visibility = View.VISIBLE }
 
         repository.getMessages(
             channelName = channelName,
@@ -161,7 +158,7 @@ class MessagesFragment : Fragment() {
             lastKnownId = 9999999,
             reverse = false,
             onSuccess = { newMessages ->
-                (requireActivity() as MainActivity).runOnUiThread {
+                runOnUiThreadIfActive {
                     messages.clear()
                     val reversed = mutableListOf<Message>()
                     for (i in newMessages.indices.reversed()) {
@@ -177,7 +174,7 @@ class MessagesFragment : Fragment() {
                 }
             },
             onError = { errorMsg ->
-                (requireActivity() as MainActivity).runOnUiThread {
+                runOnUiThreadIfActive {
                     progressBar.visibility = View.GONE
                     isLoading = false
                     handleError(errorMsg)
@@ -196,7 +193,7 @@ class MessagesFragment : Fragment() {
             lastKnownId = lastKnownId,
             reverse = false,
             onSuccess = { olderMessages ->
-                (requireActivity() as MainActivity).runOnUiThread {
+                runOnUiThreadIfActive {
                     if (olderMessages.isNotEmpty()) {
                         val reversed = olderMessages.reversed()
                         messages.addAll(0, reversed)
@@ -211,7 +208,7 @@ class MessagesFragment : Fragment() {
                 }
             },
             onError = { errorMsg ->
-                (requireActivity() as MainActivity).runOnUiThread {
+                runOnUiThreadIfActive {
                     isLoading = false
                     handleError(errorMsg)
                 }
@@ -232,14 +229,15 @@ class MessagesFragment : Fragment() {
         etMessage.text.clear()
         progressBar.visibility = View.VISIBLE
 
-        val username = (requireActivity() as MainActivity).getRepository().getSavedCredentials().first ?: ""
+        val username = (activity as? MainActivity)?.getRepository()
+            ?.getSavedCredentials()?.first ?: ""
 
         repository.sendMessage(
             from = username,
             to = channelName,
             text = text,
             onSuccess = {
-                (requireActivity() as MainActivity).runOnUiThread {
+                runOnUiThreadIfActive {
                     progressBar.visibility = View.GONE
                     messages.clear()
                     lastKnownId = 0
@@ -247,7 +245,7 @@ class MessagesFragment : Fragment() {
                 }
             },
             onError = { errorMsg ->
-                (requireActivity() as MainActivity).runOnUiThread {
+                runOnUiThreadIfActive {
                     progressBar.visibility = View.GONE
                     showError(errorMsg)
                 }
@@ -255,10 +253,9 @@ class MessagesFragment : Fragment() {
         )
     }
 
-    // Метод для получения новых сообщений через WebSocket
     fun onNewMessageReceived(message: Message) {
         Log.d("MessagesFragment", "onNewMessageReceived: канал=${message.to}, наш канал=$channelName, текст=${message.data.Text?.text}")
-        (requireActivity() as MainActivity).runOnUiThread {
+        runOnUiThreadIfActive {
             if (message.to == channelName || message.from == channelName) {
                 Log.d("MessagesFragment", "ДОБАВЛЯЕМ сообщение")
                 messages.add(message)
@@ -267,6 +264,14 @@ class MessagesFragment : Fragment() {
                 recyclerView.scrollToPosition(messages.size - 1)
             } else {
                 Log.d("MessagesFragment", "Канал не совпадает, пропускаем")
+            }
+        }
+    }
+
+    private fun runOnUiThreadIfActive(block: () -> Unit) {
+        activity?.runOnUiThread {
+            if (isAdded && view != null) {
+                block()
             }
         }
     }

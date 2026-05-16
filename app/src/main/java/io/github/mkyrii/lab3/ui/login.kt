@@ -61,10 +61,12 @@ class LoginFragment : Fragment() {
         val repository = (requireActivity() as MainActivity).getRepository()
 
         repository.login(login, password,
-            onSuccess = { token ->
-                (requireActivity() as MainActivity).runOnUiThread {
+            onSuccess = {
+                activity?.runOnUiThread {
+                    if (!isAdded || view == null) return@runOnUiThread
                     setLoading(false)
-                    val containerId = if ((requireActivity() as MainActivity).isLandscape()) {
+                    val mainActivity = requireActivity() as MainActivity
+                    val containerId = if (mainActivity.isLandscape()) {
                         R.id.fragmentContainerLeft
                     } else {
                         R.id.fragmentContainer
@@ -75,7 +77,8 @@ class LoginFragment : Fragment() {
                 }
             },
             onError = { errorMsg ->
-                (requireActivity() as MainActivity).runOnUiThread {
+                activity?.runOnUiThread {
+                    if (!isAdded || view == null) return@runOnUiThread
                     setLoading(false)
                     showError(errorMsg)
                 }

@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
-import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import io.github.mkyrii.lab3.repository.ChatRepository
 import io.github.mkyrii.lab3.storage.PreferencesManager
 import io.github.mkyrii.lab3.ui.LoginFragment
@@ -18,6 +18,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var preferencesManager: PreferencesManager
 
     var selectedChat: String? = null
+    private var isRestoringUi = false
 
     fun getRepository(): ChatRepository = repository
     fun getPreferencesManager(): PreferencesManager = preferencesManager
@@ -31,26 +32,18 @@ class MainActivity : AppCompatActivity() {
 
         selectedChat = savedInstanceState?.getString("selected_chat")
 
-        if (repository.isLoggedIn()) {
-            val username = preferencesManager.savedName ?: ""
-            repository.setOnNewMessageCallback { message ->
-                Log.d("MainActivity", "ПОЛУЧЕН КОЛБЭК, сообщение: ${message.data.Text?.text}")
-                runOnUiThread {
-                    val messagesFragment = getCurrentMessagesFragment()
-                    Log.d("MainActivity", "messagesFragment = $messagesFragment")
-                    messagesFragment?.onNewMessageReceived(message)
-                }
-            }
+        setupWebSocketCallback()
+        if (savedInstanceState != null) {
+            clearFragmentState()
         }
+        restoreUi()
 
-        if (savedInstanceState == null) {
-            if (repository.isLoggedIn()) {
-                showChatsFragment()
-                if (isLandscape() && selectedChat != null) {
-                    showMessagesFragment(selectedChat!!)
-                }
-            } else {
-                showLoginFragment()
+        supportFragmentManager.addOnBackStackChangedListener {
+            if (isRestoringUi || isLandscape()) return@addOnBackStackChangedListener
+            val current = supportFragmentManager.findFragmentById(R.id.fragmentContainer)
+            if (current !is MessagesFragment) {
+                selectedChat = null
+                getChatsFragment()?.updateSelectedChat(null)
             }
         }
 
@@ -67,6 +60,8 @@ class MainActivity : AppCompatActivity() {
                     when (currentFragment) {
                         is MessagesFragment -> {
                             supportFragmentManager.popBackStack()
+                            selectedChat = null
+                            getChatsFragment()?.updateSelectedChat(null)
                         }
                         else -> {
                             finish()
@@ -82,25 +77,101 @@ class MainActivity : AppCompatActivity() {
         outState.putString("selected_chat", selectedChat)
     }
 
+    private fun setupWebSocketCallback() {
+        if (!repository.isLoggedIn()) return
+        repository.setOnNewMessageCallback { message ->
+            Log.d("MainActivity", "ПОЛУЧЕН КОЛБЭК, сообщение: ${message.data.Text?.text}")
+            runOnUiThread {
+                val messagesFragment = getCurrentMessagesFragment()
+                Log.d("MainActivity", "messagesFragment = $messagesFragment")
+                messagesFragment?.onNewMessageReceived(message)
+            }
+        }
+    }
+
+    private fun clearFragmentState() {
+        supportFragmentManager.popBackStackImmediate(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+        for (fragment in supportFragmentManager.fragments.toList()) {
+            if (fragment.isAdded) {
+                supportFragmentManager.beginTransaction()
+                    .remove(fragment)
+                    .commitNowAllowingStateLoss()
+            }
+        }
+    }
+
+    private fun restoreUi() {
+        isRestoringUi = true
+        try {
+            if (!repository.isLoggedIn()) {
+                showLoginFragmentNow()
+                return
+            }
+            val chatToOpen = selectedChat
+
+            if (isLandscape()) {
+                val transaction = supportFragmentManager.beginTransaction()
+                    .replace(R.id.fragmentContainerLeft, ChatsFragment())
+                if (chatToOpen != null) {
+                    transaction.replace(
+                        R.id.fragmentContainerRight,
+                        MessagesFragment.newInstance(chatToOpen)
+                    )
+                }
+                transaction.commitNowAllowingStateLoss()
+            } else if (chatToOpen != null) {
+                supportFragmentManager.beginTransaction()
+                    .replace(R.id.fragmentContainer, ChatsFragment())
+                    .commitNowAllowingStateLoss()
+                supportFragmentManager.beginTransaction()
+                    .replace(R.id.fragmentContainer, MessagesFragment.newInstance(chatToOpen))
+                    .addToBackStack(null)
+                    .commit()
+                supportFragmentManager.executePendingTransactions()
+            } else {
+                supportFragmentManager.beginTransaction()
+                    .replace(R.id.fragmentContainer, ChatsFragment())
+                    .commitNowAllowingStateLoss()
+            }
+
+            if (chatToOpen != null) {
+                getChatsFragment()?.updateSelectedChat(chatToOpen)
+            }
+        } finally {
+            isRestoringUi = false
+        }
+    }
+
+    private fun showLoginFragmentNow() {
+        selectedChat = null
+        val transaction = supportFragmentManager.beginTransaction()
+        if (isLandscape()) {
+            transaction.replace(R.id.fragmentContainerLeft, LoginFragment())
+            supportFragmentManager.findFragmentById(R.id.fragmentContainerRight)?.let {
+                transaction.remove(it)
+            }
+        } else {
+            transaction.replace(R.id.fragmentContainer, LoginFragment())
+        }
+        transaction.commitNowAllowingStateLoss()
+    }
+
     fun isLandscape(): Boolean {
         return resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     }
 
     fun showLoginFragment() {
-        val fragment = LoginFragment()
-        if (isLandscape()) {
-            supportFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainerLeft, fragment)
-                .commit()
-            supportFragmentManager.beginTransaction()
-                .remove(getRightFragment())
-                .commitAllowingStateLoss()
-        } else {
-            supportFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainer, fragment)
-                .commit()
-        }
         selectedChat = null
+        val transaction = supportFragmentManager.beginTransaction()
+        if (isLandscape()) {
+            transaction.replace(R.id.fragmentContainerLeft, LoginFragment())
+            supportFragmentManager.findFragmentById(R.id.fragmentContainerRight)?.let {
+                transaction.remove(it)
+            }
+        } else {
+            transaction.replace(R.id.fragmentContainer, LoginFragment())
+        }
+        transaction.commitNowAllowingStateLoss()
     }
 
     fun showChatsFragment() {
@@ -137,15 +208,14 @@ class MainActivity : AppCompatActivity() {
     fun closeChat() {
         if (isLandscape()) {
             selectedChat = null
-            supportFragmentManager.beginTransaction()
-                .remove(getRightFragment())
-                .commit()
+            val rightFragment = supportFragmentManager.findFragmentById(R.id.fragmentContainerRight)
+            if (rightFragment != null) {
+                supportFragmentManager.beginTransaction()
+                    .remove(rightFragment)
+                    .commit()
+            }
             getChatsFragment()?.updateSelectedChat(null)
         }
-    }
-
-    private fun getRightFragment(): Fragment {
-        return supportFragmentManager.findFragmentById(R.id.fragmentContainerRight) ?: Fragment()
     }
 
     private fun getChatsFragment(): ChatsFragment? {
