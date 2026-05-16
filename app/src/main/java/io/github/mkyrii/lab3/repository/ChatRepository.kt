@@ -1,21 +1,21 @@
 package io.github.mkyrii.lab3.repository
 
+import android.util.Log
+import com.google.gson.Gson
 import io.github.mkyrii.lab3.Message
-import io.github.mkyrii.lab3.MessageDataContent
-import io.github.mkyrii.lab3.SendMessageRequest
-import io.github.mkyrii.lab3.TextContent
-import io.github.mkyrii.lab3.UserCredentials
-import io.github.mkyrii.lab3.network.ApiService
-import io.github.mkyrii.lab3.network.WebSocketService
 import io.github.mkyrii.lab3.storage.PreferencesManager
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
-class ChatRepository(
-    private val apiService: ApiService,
-    private val prefs: PreferencesManager
-) {
+class ChatRepository(private val prefs: PreferencesManager) {
+
+    private val client = OkHttpClient()
+    private val gson = Gson()
+    private var webSocket: WebSocket? = null
+    private var onNewMessageCallback: ((Message) -> Unit)? = null
 
     fun login(
         name: String,
@@ -23,45 +23,133 @@ class ChatRepository(
         onSuccess: (token: String) -> Unit,
         onError: (errorMsg: String) -> Unit
     ) {
-        val credentials = UserCredentials(name, password)
-        apiService.login(credentials).enqueue(object : Callback<String> {  // Изменено с LoginResponse на String
-            override fun onResponse(call: Call<String>, response: Response<String>) {
-                if (response.isSuccessful && response.body() != null) {
-                    val token = response.body()!!.trim('"')  // Токен приходит как plain text
+        val json = "{\"name\":\"$name\",\"pwd\":\"$password\"}"
+        val body = json.toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url("https://faerytea.name/login")
+            .post(body)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onResponse(call: Call, response: Response) {
+                val responseBody = response.body?.string()
+
+                if (response.isSuccessful && !responseBody.isNullOrEmpty()) {
+                    val token = responseBody.trim('"')
                     prefs.authToken = token
                     prefs.savedName = name
                     prefs.savedPassword = password
                     prefs.isLoggedIn = true
                     onSuccess(token)
+                    Log.d("LOGIN", "Вызываем connectWebSocket для $name")
+                    connectWebSocket(name)
                 } else {
-                    when (response.code()) {
+                    when (response.code) {
                         401 -> onError("Неверный логин / пароль")
-                        else -> onError("Ошибка: ${response.code()}")
+                        else -> onError("Ошибка: ${response.code}")
                     }
                 }
             }
 
-            override fun onFailure(call: Call<String>, t: Throwable) {
-                onError("Ошибка сети: ${t.message}")
+            override fun onFailure(call: Call, e: IOException) {
+                onError("Ошибка сети: ${e.message}")
             }
         })
     }
 
-    fun getChannels(
-        onSuccess: (channels: List<String>) -> Unit,
-        onError: (errorMsg: String) -> Unit
-    ) {
-        apiService.getChannels().enqueue(object : Callback<List<String>> {
-            override fun onResponse(call: Call<List<String>>, response: Response<List<String>>) {
-                if (response.isSuccessful && response.body() != null) {
-                    onSuccess(response.body()!!)
-                } else {
-                    handleError(response.code(), onError)
+    fun connectWebSocket(username: String) {
+        val token = prefs.authToken
+        if (token == null) {
+            Log.e("WebSocket", "Нет токена")
+            return
+        }
+
+        val url = "wss://faerytea.name/ws/$username?token=$token"
+        val request = Request.Builder()
+            .url(url)
+            .build()
+
+        val wsClient = OkHttpClient.Builder()
+            .pingInterval(30, TimeUnit.SECONDS)
+            .build()
+
+        webSocket = wsClient.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                Log.d("WebSocket", "✅ Подключено")
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                Log.d("WebSocket", "Получено: $text")
+                try {
+                    val gson = Gson()
+                    val json = com.google.gson.JsonParser.parseString(text).asJsonObject
+
+                    if (json.has("NewMessage") && !json.get("NewMessage").isJsonNull) {
+                        val msgObj = json.getAsJsonObject("NewMessage").getAsJsonObject("msg")
+                        val message = gson.fromJson(msgObj, Message::class.java)
+                        Log.d("WebSocket", "Сообщение: ${message.data.Text?.text}")
+                        onNewMessageCallback?.invoke(message)
+                    }
+                } catch (e: Exception) {
+                    Log.e("WebSocket", "Ошибка парсинга: ${e.message}")
                 }
             }
 
-            override fun onFailure(call: Call<List<String>>, t: Throwable) {
-                onError("Ошибка сети: ${t.message}")
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                Log.e("WebSocket", "Ошибка: ${t.message}")
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                Log.d("WebSocket", "Закрыто: $reason")
+            }
+        })
+    }
+
+    fun closeWebSocket() {
+        webSocket?.close(1000, "Normal closure")
+        webSocket = null
+    }
+
+    fun sendStartTyping(chat: String) {
+        val json = """{"StartTyping":{"chat":"$chat"}}"""
+        webSocket?.send(json)
+    }
+
+    fun sendEndTyping() {
+        val json = """{"EndTyping":{}}"""
+        webSocket?.send(json)
+    }
+
+    fun setOnNewMessageCallback(callback: (Message) -> Unit) {
+        onNewMessageCallback = callback
+    }
+
+    fun getChannels(
+        onSuccess: (List<String>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val token = prefs.authToken ?: run { onError("Нет токена"); return }
+
+        val request = Request.Builder()
+            .url("https://faerytea.name/channels")
+            .get()
+            .header("X-Auth-Token", token)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string()
+                if (response.isSuccessful && body != null) {
+                    val channels = gson.fromJson(body, Array<String>::class.java).toList()
+                    onSuccess(channels)
+                } else {
+                    onError("Ошибка: ${response.code}")
+                }
+            }
+
+            override fun onFailure(call: Call, e: IOException) {
+                onError("Ошибка сети: ${e.message}")
             }
         })
     }
@@ -69,25 +157,38 @@ class ChatRepository(
     fun getMessages(
         channelName: String,
         limit: Int = 20,
-        lastKnownId: Int = 0,
+        lastKnownId: Int = 99999999,
         reverse: Boolean = false,
-        onSuccess: (messages: List<Message>) -> Unit,
-        onError: (errorMsg: String) -> Unit
+        onSuccess: (List<Message>) -> Unit,
+        onError: (String) -> Unit
     ) {
-        apiService.getMessages(channelName, limit, lastKnownId, reverse)
-            .enqueue(object : Callback<List<Message>> {
-                override fun onResponse(call: Call<List<Message>>, response: Response<List<Message>>) {
-                    if (response.isSuccessful && response.body() != null) {
-                        onSuccess(response.body()!!)
-                    } else {
-                        handleError(response.code(), onError)
-                    }
-                }
+        val token = prefs.authToken ?: run { onError("Нет токена"); return }
 
-                override fun onFailure(call: Call<List<Message>>, t: Throwable) {
-                    onError("Ошибка сети: ${t.message}")
+        val url = "https://faerytea.name/channel/$channelName?limit=$limit&lastKnownId=$lastKnownId&reverse=true"
+        Log.d("GET_MESSAGES", "URL: $url")
+
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .header("X-Auth-Token", token)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string()
+                if (response.isSuccessful && body != null) {
+                    val messages = gson.fromJson(body, Array<Message>::class.java).toList()
+                    Log.d("GET_MESSAGES", "Получено сообщений: ${messages.size}")
+                    onSuccess(messages)
+                } else {
+                    onError("Ошибка: ${response.code}")
                 }
-            })
+            }
+
+            override fun onFailure(call: Call, e: IOException) {
+                onError("Ошибка сети: ${e.message}")
+            }
+        })
     }
 
     fun sendMessage(
@@ -95,41 +196,61 @@ class ChatRepository(
         to: String,
         text: String,
         onSuccess: () -> Unit,
-        onError: (errorMsg: String) -> Unit
+        onError: (String) -> Unit
     ) {
-        val message = SendMessageRequest(
-            from = from,
-            to = to,
-            data = MessageDataContent(TextContent(text))
+        val token = prefs.authToken ?: run { onError("Нет токена"); return }
+
+        val message = mapOf(
+            "from" to from,
+            "to" to to,
+            "data" to mapOf("Text" to mapOf("text" to text))
         )
 
-        apiService.sendMessage(message).enqueue(object : Callback<Void> {
-            override fun onResponse(call: Call<Void>, response: Response<Void>) {
+        val json = gson.toJson(message)
+        Log.d("SEND", "Отправляем JSON: $json")
+        val body = json.toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url("https://faerytea.name/messages")
+            .post(body)
+            .header("X-Auth-Token", token)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onResponse(call: Call, response: Response) {
+                val responseBody = response.body?.string()
+                Log.d("SEND", "Ответ: код ${response.code}, тело: $responseBody")
                 if (response.isSuccessful) {
                     onSuccess()
                 } else {
-                    val errorBody = response.errorBody()?.string()
-                    onError("Ошибка: ${response.code()} - $errorBody")
+                    onError("Ошибка: ${response.code}")
                 }
             }
 
-            override fun onFailure(call: Call<Void>, t: Throwable) {
-                onError("Ошибка сети: ${t.message}")
+            override fun onFailure(call: Call, e: IOException) {
+                onError("Ошибка сети: ${e.message}")
             }
         })
     }
 
-    fun logout(
-        onSuccess: () -> Unit,
-        onError: (errorMsg: String) -> Unit
-    ) {
-        apiService.logout().enqueue(object : Callback<Void> {
-            override fun onResponse(call: Call<Void>, response: Response<Void>) {
+    fun logout(onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val token = prefs.authToken ?: run { onError("Нет токена"); return }
+
+        val request = Request.Builder()
+            .url("https://faerytea.name/logout")
+            .post("".toRequestBody())
+            .header("X-Auth-Token", token)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onResponse(call: Call, response: Response) {
+                closeWebSocket()
                 prefs.clear()
                 onSuccess()
             }
 
-            override fun onFailure(call: Call<Void>, t: Throwable) {
+            override fun onFailure(call: Call, e: IOException) {
+                closeWebSocket()
                 prefs.clear()
                 onSuccess()
             }
@@ -137,41 +258,5 @@ class ChatRepository(
     }
 
     fun isLoggedIn(): Boolean = prefs.isLoggedIn
-
     fun getSavedCredentials(): Pair<String?, String?> = Pair(prefs.savedName, prefs.savedPassword)
-
-    private fun handleError(code: Int, onError: (String) -> Unit) {
-        when (code) {
-            401 -> onError("Не авторизован")
-            else -> onError("Ошибка: $code")
-        }
-    }
-
-    // Добавь поле
-    private var webSocketService: WebSocketService? = null
-
-    // Добавь метод инициализации WebSocket
-    fun initWebSocket(onNewMessage: (Message) -> Unit, onUnauthorized: () -> Unit) {
-        val username = prefs.savedName ?: return
-        webSocketService = WebSocketService(prefs, onNewMessage, onUnauthorized)
-        webSocketService?.connect(username)
-    }
-
-    fun closeWebSocket() {
-        webSocketService?.disconnect()
-        webSocketService = null
-    }
-
-    fun sendStartTyping(chat: String) {
-        webSocketService?.sendStartTyping(chat)
-    }
-
-    fun sendEndTyping() {
-        webSocketService?.sendEndTyping()
-    }
-
-    // Отправка сообщения через WebSocket (для реального времени)
-    fun sendMessageViaWebSocket(to: String, text: String) {
-        webSocketService?.sendTextMessage(to, text)
-    }
 }

@@ -64,15 +64,19 @@ class ChatsFragment : Fragment() {
         progressBar.visibility = View.VISIBLE
         repository.getChannels(
             onSuccess = { channels ->
-                progressBar.visibility = View.GONE
-                adapter.submitList(channels)
+                (requireActivity() as MainActivity).runOnUiThread {
+                    progressBar.visibility = View.GONE
+                    adapter.submitList(channels)
+                }
             },
             onError = { errorMsg ->
-                progressBar.visibility = View.GONE
-                if (errorMsg.contains("401") || errorMsg.contains("Не авторизован")) {
-                    goToLogin()
-                } else {
-                    showError(errorMsg)
+                (requireActivity() as MainActivity).runOnUiThread {
+                    progressBar.visibility = View.GONE
+                    if (errorMsg.contains("401") || errorMsg.contains("Не авторизован")) {
+                        goToLogin()
+                    } else {
+                        showError(errorMsg)
+                    }
                 }
             }
         )

@@ -3,6 +3,7 @@ package io.github.mkyrii.lab3.ui
 import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,9 +14,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import io.github.mkyrii.lab3.MainActivity
 import io.github.mkyrii.lab3.Message
-import io.github.mkyrii.lab3.MessageData
 import io.github.mkyrii.lab3.R
-import io.github.mkyrii.lab3.TextData
 import io.github.mkyrii.lab3.repository.ChatRepository
 
 class MessagesFragment : Fragment() {
@@ -129,7 +128,6 @@ class MessagesFragment : Fragment() {
         recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
-                val visibleItemCount = layoutManager.childCount
                 val totalItemCount = layoutManager.itemCount
                 val firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
 
@@ -143,25 +141,38 @@ class MessagesFragment : Fragment() {
     private fun loadMessages() {
         if (isLoading) return
         isLoading = true
-        progressBar.visibility = View.VISIBLE
+
+        (requireActivity() as MainActivity).runOnUiThread {
+            progressBar.visibility = View.VISIBLE
+        }
 
         repository.getMessages(
             channelName = channelName,
             limit = 20,
-            lastKnownId = 0,
+            lastKnownId = 9999999,
             reverse = false,
             onSuccess = { newMessages ->
-                messages.clear()
-                messages.addAll(newMessages)
-                updateLastKnownId()
-                adapter.submitList(messages)
-                recyclerView.scrollToPosition(adapter.itemCount - 1)
-                isLoading = false
-                progressBar.visibility = View.GONE
-                hasMore = newMessages.size == 20
+                (requireActivity() as MainActivity).runOnUiThread {
+                    messages.clear()
+                    val reversed = mutableListOf<Message>()
+                    for (i in newMessages.indices.reversed()) {
+                        reversed.add(newMessages[i])
+                    }
+                    messages.addAll(reversed)
+                    updateLastKnownId()
+                    adapter.submitList(messages)
+                    recyclerView.scrollToPosition(messages.size - 1)
+                    isLoading = false
+                    progressBar.visibility = View.GONE
+                    hasMore = newMessages.size == 20
+                }
             },
             onError = { errorMsg ->
-                handleError(errorMsg)
+                (requireActivity() as MainActivity).runOnUiThread {
+                    progressBar.visibility = View.GONE
+                    isLoading = false
+                    handleError(errorMsg)
+                }
             }
         )
     }
@@ -174,25 +185,27 @@ class MessagesFragment : Fragment() {
             channelName = channelName,
             limit = 20,
             lastKnownId = lastKnownId,
-            reverse = true,
+            reverse = false,
             onSuccess = { olderMessages ->
-                if (olderMessages.isNotEmpty()) {
-                    val currentSize = messages.size
-
-                    messages.addAll(0, olderMessages)
-                    updateLastKnownId()
-                    adapter.submitList(messages)
-                    recyclerView.scrollToPosition(olderMessages.size)
-                    messages.addAll(0, olderMessages)
-                    hasMore = olderMessages.size == 20
-                } else {
-                    hasMore = false
+                (requireActivity() as MainActivity).runOnUiThread {
+                    if (olderMessages.isNotEmpty()) {
+                        val reversed = olderMessages.reversed()
+                        messages.addAll(0, reversed)
+                        updateLastKnownId()
+                        adapter.submitList(messages)
+                        recyclerView.scrollToPosition(olderMessages.size)
+                        hasMore = olderMessages.size == 20
+                    } else {
+                        hasMore = false
+                    }
+                    isLoading = false
                 }
-                isLoading = false
             },
             onError = { errorMsg ->
-                handleError(errorMsg)
-                isLoading = false
+                (requireActivity() as MainActivity).runOnUiThread {
+                    isLoading = false
+                    handleError(errorMsg)
+                }
             }
         )
     }
@@ -217,34 +230,35 @@ class MessagesFragment : Fragment() {
             to = channelName,
             text = text,
             onSuccess = {
-                progressBar.visibility = View.GONE
-                val newMessage = Message(
-                    id = System.currentTimeMillis().toString(),
-                    from = username,
-                    to = channelName,
-                    data = MessageData(Text = TextData(text)),
-                    time = System.currentTimeMillis() / 1000
-                )
-                messages.add(newMessage)
-                updateLastKnownId()
-                adapter.submitList(messages)
-                recyclerView.scrollToPosition(adapter.itemCount - 1)
+                (requireActivity() as MainActivity).runOnUiThread {
+                    progressBar.visibility = View.GONE
+                    messages.clear()
+                    lastKnownId = 0
+                    loadMessages()
+                }
             },
             onError = { errorMsg ->
-                progressBar.visibility = View.GONE
-                showError(errorMsg)
+                (requireActivity() as MainActivity).runOnUiThread {
+                    progressBar.visibility = View.GONE
+                    showError(errorMsg)
+                }
             }
         )
     }
 
     // Метод для получения новых сообщений через WebSocket
     fun onNewMessageReceived(message: Message) {
-        // Проверяем, что сообщение относится к текущему чату
-        if (message.to == channelName || message.from == channelName) {
-            messages.add(message)
-            updateLastKnownId()
-            adapter.submitList(messages)
-            recyclerView.scrollToPosition(messages.size - 1)
+        Log.d("MessagesFragment", "onNewMessageReceived: канал=${message.to}, наш канал=$channelName, текст=${message.data.Text?.text}")
+        (requireActivity() as MainActivity).runOnUiThread {
+            if (message.to == channelName || message.from == channelName) {
+                Log.d("MessagesFragment", "ДОБАВЛЯЕМ сообщение")
+                messages.add(message)
+                updateLastKnownId()
+                adapter.submitList(messages)
+                recyclerView.scrollToPosition(messages.size - 1)
+            } else {
+                Log.d("MessagesFragment", "Канал не совпадает, пропускаем")
+            }
         }
     }
 

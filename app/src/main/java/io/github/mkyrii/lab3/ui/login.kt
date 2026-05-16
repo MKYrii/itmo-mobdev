@@ -62,14 +62,23 @@ class LoginFragment : Fragment() {
 
         repository.login(login, password,
             onSuccess = { token ->
-                setLoading(false)
-                parentFragmentManager.beginTransaction()
-                    .replace(R.id.fragmentContainer, ChatsFragment())
-                    .commit()
+                (requireActivity() as MainActivity).runOnUiThread {
+                    setLoading(false)
+                    val containerId = if ((requireActivity() as MainActivity).isLandscape()) {
+                        R.id.fragmentContainerLeft
+                    } else {
+                        R.id.fragmentContainer
+                    }
+                    parentFragmentManager.beginTransaction()
+                        .replace(containerId, ChatsFragment())
+                        .commit()
+                }
             },
             onError = { errorMsg ->
-                setLoading(false)
-                showError(errorMsg)
+                (requireActivity() as MainActivity).runOnUiThread {
+                    setLoading(false)
+                    showError(errorMsg)
+                }
             }
         )
     }

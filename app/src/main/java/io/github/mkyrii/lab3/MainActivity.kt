@@ -2,16 +2,14 @@ package io.github.mkyrii.lab3
 
 import android.content.res.Configuration
 import android.os.Bundle
-import android.widget.Toast
+import android.util.Log
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import io.github.mkyrii.lab3.repository.ChatRepository
 import io.github.mkyrii.lab3.storage.PreferencesManager
-import io.github.mkyrii.lab3.network.RetrofitClient
-import io.github.mkyrii.lab3.ui.ChatsFragment
 import io.github.mkyrii.lab3.ui.LoginFragment
-import io.github.mkyrii.lab3.ui.ImageActivity
+import io.github.mkyrii.lab3.ui.ChatsFragment
 import io.github.mkyrii.lab3.ui.MessagesFragment
 
 class MainActivity : AppCompatActivity() {
@@ -22,16 +20,28 @@ class MainActivity : AppCompatActivity() {
     var selectedChat: String? = null
 
     fun getRepository(): ChatRepository = repository
+    fun getPreferencesManager(): PreferencesManager = preferencesManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         preferencesManager = PreferencesManager(this)
-        val retrofitClient = RetrofitClient(preferencesManager)
-        repository = ChatRepository(retrofitClient.apiService, preferencesManager)
+        repository = ChatRepository(preferencesManager)
 
         selectedChat = savedInstanceState?.getString("selected_chat")
+
+        if (repository.isLoggedIn()) {
+            val username = preferencesManager.savedName ?: ""
+            repository.setOnNewMessageCallback { message ->
+                Log.d("MainActivity", "ПОЛУЧЕН КОЛБЭК, сообщение: ${message.data.Text?.text}")
+                runOnUiThread {
+                    val messagesFragment = getCurrentMessagesFragment()
+                    Log.d("MainActivity", "messagesFragment = $messagesFragment")
+                    messagesFragment?.onNewMessageReceived(message)
+                }
+            }
+        }
 
         if (savedInstanceState == null) {
             if (repository.isLoggedIn()) {
@@ -44,23 +54,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        if (repository.isLoggedIn()) {
-            repository.initWebSocket(
-                onNewMessage = { message ->
-                    runOnUiThread {
-                        val messagesFragment = getCurrentMessagesFragment()
-                        messagesFragment?.onNewMessageReceived(message)
-                    }
-                },
-                onUnauthorized = {
-                    runOnUiThread {
-                        handleUnauthorized()
-                    }
-                }
-            )
-        }
-
-        // Обработка кнопки "назад" через OnBackPressedDispatcher
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (isLandscape()) {
@@ -89,11 +82,6 @@ class MainActivity : AppCompatActivity() {
         selectedChat?.let { outState.putString("selected_chat", it) }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        repository.closeWebSocket()
-    }
-
     fun isLandscape(): Boolean {
         return resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     }
@@ -102,31 +90,28 @@ class MainActivity : AppCompatActivity() {
         val fragment = LoginFragment()
         if (isLandscape()) {
             supportFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainerLeft, fragment as Fragment)
+                .replace(R.id.fragmentContainerLeft, fragment)
                 .commit()
             supportFragmentManager.beginTransaction()
                 .remove(getRightFragment())
                 .commitAllowingStateLoss()
         } else {
             supportFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainer, fragment as Fragment)
+                .replace(R.id.fragmentContainer, fragment)
                 .commit()
         }
-
         selectedChat = null
     }
-
-    fun getPreferencesManager(): PreferencesManager = preferencesManager
 
     fun showChatsFragment() {
         val fragment = ChatsFragment()
         if (isLandscape()) {
             supportFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainerLeft, fragment as Fragment)
+                .replace(R.id.fragmentContainerLeft, fragment)
                 .commit()
         } else {
             supportFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainer, fragment as Fragment)
+                .replace(R.id.fragmentContainer, fragment)
                 .commit()
         }
     }
@@ -135,16 +120,15 @@ class MainActivity : AppCompatActivity() {
         selectedChat = chatName
         val fragment = MessagesFragment.newInstance(chatName)
 
-        val chatsFragment = getChatsFragment()
-        chatsFragment?.updateSelectedChat(chatName)
+        getChatsFragment()?.updateSelectedChat(chatName)
 
         if (isLandscape()) {
             supportFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainerRight, fragment as Fragment)
+                .replace(R.id.fragmentContainerRight, fragment)
                 .commit()
         } else {
             supportFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainer, fragment as Fragment)
+                .replace(R.id.fragmentContainer, fragment)
                 .addToBackStack(null)
                 .commit()
         }
@@ -180,11 +164,5 @@ class MainActivity : AppCompatActivity() {
             supportFragmentManager.findFragmentById(R.id.fragmentContainer)
         }
         return if (fragment is MessagesFragment) fragment else null
-    }
-
-    private fun handleUnauthorized() {
-        preferencesManager.clear()
-        showLoginFragment()
-        Toast.makeText(this, "Сессия истекла, войдите заново", Toast.LENGTH_LONG).show()
     }
 }
