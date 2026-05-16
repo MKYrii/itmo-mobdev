@@ -55,9 +55,18 @@ class MessagesFragment : Fragment() {
         return inflater.inflate(R.layout.fragment_messages, container, false)
     }
 
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("channel_name", channelName)
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        if (savedInstanceState != null) {
+            channelName = savedInstanceState.getString("channel_name") ?: channelName
+        }
         repository = (requireActivity() as MainActivity).getRepository()
         channelName = arguments?.getString(CHANNEL_KEY) ?: "1@channel"
 

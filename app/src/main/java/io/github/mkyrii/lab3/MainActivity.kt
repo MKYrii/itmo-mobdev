@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        selectedChat?.let { outState.putString("selected_chat", it) }
+        outState.putString("selected_chat", selectedChat)
     }
 
     fun isLandscape(): Boolean {
