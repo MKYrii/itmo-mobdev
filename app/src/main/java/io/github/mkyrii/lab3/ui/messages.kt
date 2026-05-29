@@ -280,11 +280,14 @@ class MessagesFragment : Fragment() {
                     loadMessages()
                 }
             },
-            onQueued = {
+            onQueued = { queuedMessage ->
                 runOnUiThreadIfActive {
                     progressBar.visibility = View.GONE
                     updateOfflineBanner()
-                    applyMessages(repository.getDisplayMessages(channelName), scrollToEnd = true)
+                    messages.add(queuedMessage)
+                    messages.sortWith(compareBy<Message> { it.time }.thenBy { it.id })
+                    adapter.submitList(messages.toList())
+                    scrollToBottom()
                     Toast.makeText(requireContext(), R.string.message_queued, Toast.LENGTH_SHORT).show()
                 }
             },
