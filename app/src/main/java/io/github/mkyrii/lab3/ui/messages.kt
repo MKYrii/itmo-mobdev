@@ -16,6 +16,7 @@ import io.github.mkyrii.lab3.MainActivity
 import io.github.mkyrii.lab3.Message
 import io.github.mkyrii.lab3.R
 import io.github.mkyrii.lab3.repository.ChatRepository
+import io.github.mkyrii.lab3.util.MessageMerge
 
 class MessagesFragment : Fragment() {
 
@@ -26,6 +27,7 @@ class MessagesFragment : Fragment() {
     private lateinit var btnSend: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var btnBack: Button
+    private lateinit var tvOffline: TextView
 
     private var channelName: String = ""
     private var messages = mutableListOf<Message>()
@@ -74,6 +76,7 @@ class MessagesFragment : Fragment() {
         btnSend = view.findViewById(R.id.btnSend)
         progressBar = view.findViewById(R.id.progressBar)
         btnBack = view.findViewById(R.id.btnBack)
+        tvOffline = view.findViewById(R.id.tvOffline)
 
         setupRecyclerView()
         setupTypingListener()
@@ -147,9 +150,16 @@ class MessagesFragment : Fragment() {
         })
     }
 
+    fun refreshData() {
+        if (isAdded && view != null) {
+            loadMessages()
+        }
+    }
+
     private fun loadMessages() {
         if (isLoading || !isAdded || view == null) return
         isLoading = true
+        updateOfflineBanner()
         runOnUiThreadIfActive { progressBar.visibility = View.VISIBLE }
 
         repository.getMessages(
@@ -159,28 +169,40 @@ class MessagesFragment : Fragment() {
             reverse = false,
             onSuccess = { newMessages ->
                 runOnUiThreadIfActive {
-                    messages.clear()
-                    val reversed = mutableListOf<Message>()
-                    for (i in newMessages.indices.reversed()) {
-                        reversed.add(newMessages[i])
-                    }
-                    messages.addAll(reversed)
-                    updateLastKnownId()
-                    adapter.submitList(messages)
-                    recyclerView.scrollToPosition(messages.size - 1)
+                    applyMessages(newMessages, scrollToEnd = true)
                     isLoading = false
                     progressBar.visibility = View.GONE
-                    hasMore = newMessages.size == 20
+                    hasMore = newMessages.size >= 20
+                    updateOfflineBanner()
                 }
             },
             onError = { errorMsg ->
                 runOnUiThreadIfActive {
                     progressBar.visibility = View.GONE
                     isLoading = false
+                    updateOfflineBanner()
                     handleError(errorMsg)
                 }
             }
         )
+    }
+
+    private fun applyMessages(newMessages: List<Message>, scrollToEnd: Boolean) {
+        messages.clear()
+        messages.addAll(MessageMerge.sortChronologically(newMessages))
+        updateLastKnownId()
+        adapter.submitList(messages.toList())
+        if (scrollToEnd) {
+            scrollToBottom()
+        }
+    }
+
+    private fun scrollToBottom() {
+        recyclerView.post {
+            if (messages.isNotEmpty()) {
+                recyclerView.scrollToPosition(messages.size - 1)
+            }
+        }
     }
 
     private fun loadMoreMessages() {
@@ -195,16 +217,31 @@ class MessagesFragment : Fragment() {
             onSuccess = { olderMessages ->
                 runOnUiThreadIfActive {
                     if (olderMessages.isNotEmpty()) {
-                        val reversed = olderMessages.reversed()
-                        messages.addAll(0, reversed)
+                        val layoutManager = recyclerView.layoutManager as LinearLayoutManager
+                        val firstVisible = layoutManager.findFirstVisibleItemPosition()
+                        val topOffset = layoutManager.findViewByPosition(firstVisible)?.top ?: 0
+                        val oldSize = messages.size
+                        val currentMessages = messages.toList()
+
+                        messages.clear()
+                        messages.addAll(
+                            MessageMerge.sortChronologically(olderMessages + currentMessages)
+                        )
+                        val addedCount = messages.size - oldSize
                         updateLastKnownId()
-                        adapter.submitList(messages)
-                        recyclerView.scrollToPosition(olderMessages.size)
-                        hasMore = olderMessages.size == 20
+                        adapter.submitList(messages.toList())
+                        if (addedCount > 0 && firstVisible >= 0) {
+                            layoutManager.scrollToPositionWithOffset(
+                                firstVisible + addedCount,
+                                topOffset
+                            )
+                        }
+                        hasMore = olderMessages.size >= 20
                     } else {
                         hasMore = false
                     }
                     isLoading = false
+                    updateOfflineBanner()
                 }
             },
             onError = { errorMsg ->
@@ -239,9 +276,16 @@ class MessagesFragment : Fragment() {
             onSuccess = {
                 runOnUiThreadIfActive {
                     progressBar.visibility = View.GONE
-                    messages.clear()
                     lastKnownId = 0
                     loadMessages()
+                }
+            },
+            onQueued = {
+                runOnUiThreadIfActive {
+                    progressBar.visibility = View.GONE
+                    updateOfflineBanner()
+                    applyMessages(repository.getDisplayMessages(channelName), scrollToEnd = true)
+                    Toast.makeText(requireContext(), R.string.message_queued, Toast.LENGTH_SHORT).show()
                 }
             },
             onError = { errorMsg ->
@@ -257,15 +301,23 @@ class MessagesFragment : Fragment() {
         Log.d("MessagesFragment", "onNewMessageReceived: канал=${message.to}, наш канал=$channelName, текст=${message.data.Text?.text}")
         runOnUiThreadIfActive {
             if (message.to == channelName || message.from == channelName) {
-                Log.d("MessagesFragment", "ДОБАВЛЯЕМ сообщение")
-                messages.add(message)
-                updateLastKnownId()
-                adapter.submitList(messages)
-                recyclerView.scrollToPosition(messages.size - 1)
-            } else {
-                Log.d("MessagesFragment", "Канал не совпадает, пропускаем")
+                addMessageIfNotDuplicate(message)
             }
         }
+    }
+
+    private fun addMessageIfNotDuplicate(message: Message) {
+        if (messages.any { it.id == message.id }) return
+        messages.clear()
+        messages.addAll(MessageMerge.sortChronologically(messages + message))
+        updateLastKnownId()
+        adapter.submitList(messages.toList())
+        scrollToBottom()
+    }
+
+    private fun updateOfflineBanner() {
+        if (!::tvOffline.isInitialized) return
+        tvOffline.visibility = if (repository.isOnline()) View.GONE else View.VISIBLE
     }
 
     private fun runOnUiThreadIfActive(block: () -> Unit) {

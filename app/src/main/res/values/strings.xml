@@ -9,4 +9,6 @@
     <string name="back_button">← Назад</string>
     <string name="message_hint">Введите сообщение...</string>
     <string name="send_button">Отправить</string>
+    <string name="offline_mode">Нет сети — показаны сохранённые данные</string>
+    <string name="message_queued">Сообщение будет отправлено при появлении сети</string>
 </resources>

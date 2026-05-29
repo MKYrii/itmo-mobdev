@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -21,6 +22,7 @@ class ChatsFragment : Fragment() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var progressBar: ProgressBar
     private lateinit var btnLogout: Button
+    private lateinit var tvOffline: TextView
     private lateinit var adapter: ChatsAdapter
 
     override fun onCreateView(
@@ -38,6 +40,7 @@ class ChatsFragment : Fragment() {
 
         recyclerView = view.findViewById(R.id.rvChats)
         progressBar = view.findViewById(R.id.progressBar)
+        tvOffline = view.findViewById(R.id.tvOffline)
         btnLogout = view.findViewById(R.id.btnLogout)
 
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
@@ -56,6 +59,12 @@ class ChatsFragment : Fragment() {
         loadChats()
     }
 
+    fun refreshData() {
+        if (isAdded && view != null) {
+            loadChats()
+        }
+    }
+
     fun updateSelectedChat(chat: String?) {
         if (!::adapter.isInitialized) return
         adapter.updateSelectedChat(chat)
@@ -63,11 +72,13 @@ class ChatsFragment : Fragment() {
 
     private fun loadChats() {
         if (!isAdded || view == null) return
+        updateOfflineBanner()
         progressBar.visibility = View.VISIBLE
         repository.getChannels(
             onSuccess = { channels ->
                 runOnUiThreadIfActive {
                     progressBar.visibility = View.GONE
+                    updateOfflineBanner()
                     adapter.submitList(channels)
                 }
             },
@@ -82,6 +93,11 @@ class ChatsFragment : Fragment() {
                 }
             }
         )
+    }
+
+    private fun updateOfflineBanner() {
+        if (!::tvOffline.isInitialized) return
+        tvOffline.visibility = if (repository.isOnline()) View.GONE else View.VISIBLE
     }
 
     private fun runOnUiThreadIfActive(block: () -> Unit) {

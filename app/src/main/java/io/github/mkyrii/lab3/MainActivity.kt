@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.FragmentManager
+import io.github.mkyrii.lab3.network.NetworkMonitor
 import io.github.mkyrii.lab3.repository.ChatRepository
 import io.github.mkyrii.lab3.storage.PreferencesManager
 import io.github.mkyrii.lab3.ui.LoginFragment
@@ -16,6 +17,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var repository: ChatRepository
     private lateinit var preferencesManager: PreferencesManager
+    private lateinit var networkMonitor: NetworkMonitor
 
     var selectedChat: String? = null
     private var isRestoringUi = false
@@ -28,11 +30,13 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         preferencesManager = PreferencesManager(this)
-        repository = ChatRepository(preferencesManager)
+        repository = ChatRepository(this, preferencesManager)
+        networkMonitor = NetworkMonitor(this)
 
         selectedChat = savedInstanceState?.getString("selected_chat")
 
         setupWebSocketCallback()
+        setupNetworkMonitor()
         if (savedInstanceState != null) {
             clearFragmentState()
         }
@@ -72,9 +76,34 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    override fun onDestroy() {
+        if (::networkMonitor.isInitialized) {
+            networkMonitor.stop()
+        }
+        super.onDestroy()
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString("selected_chat", selectedChat)
+    }
+
+    private fun setupNetworkMonitor() {
+        repository.setOnPendingFlushComplete {
+            runOnUiThread { refreshVisibleScreens() }
+        }
+        networkMonitor.onNetworkAvailable = {
+            runOnUiThread {
+                repository.reconnectIfLoggedIn()
+                refreshVisibleScreens()
+            }
+        }
+        networkMonitor.start()
+    }
+
+    private fun refreshVisibleScreens() {
+        getChatsFragment()?.refreshData()
+        getCurrentMessagesFragment()?.refreshData()
     }
 
     private fun setupWebSocketCallback() {
