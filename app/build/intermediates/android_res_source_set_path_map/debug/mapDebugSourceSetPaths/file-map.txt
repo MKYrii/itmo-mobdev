@@ -1,0 +1,7 @@
+io.github.mkyrii.lab3.app-pngs-0 D:\IDE\StudioProjects\itmo-mobdev\app\build\generated\res\pngs\debug
+io.github.mkyrii.lab3.app-updated_navigation_xml-1 D:\IDE\StudioProjects\itmo-mobdev\app\build\generated\updated_navigation_xml\debug
+io.github.mkyrii.lab3.app-packageDebugResources-2 D:\IDE\StudioProjects\itmo-mobdev\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+io.github.mkyrii.lab3.app-packageDebugResources-3 D:\IDE\StudioProjects\itmo-mobdev\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+io.github.mkyrii.lab3.app-debug-4 D:\IDE\StudioProjects\itmo-mobdev\app\build\intermediates\merged_res\debug\mergeDebugResources
+io.github.mkyrii.lab3.app-debug-5 D:\IDE\StudioProjects\itmo-mobdev\app\src\debug\res
+io.github.mkyrii.lab3.app-main-6 D:\IDE\StudioProjects\itmo-mobdev\app\src\main\res
