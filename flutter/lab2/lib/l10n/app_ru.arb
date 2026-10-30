@@ -1,0 +1,26 @@
+{
+  "@@locale": "ru",
+  "appTitle": "Контакты",
+  "searchHint": "Поиск по имени",
+  "sortAsc": "А → Я",
+  "sortDesc": "Я → А",
+  "foundCount": "{count, plural, =0{Ничего не найдено} =1{Найден 1 контакт} other{Найдено контактов: {count}}}",
+  "@foundCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "noContacts": "В адресной книге нет контактов",
+  "noSearchResults": "Ничего не найдено",
+  "loading": "Загрузка…",
+  "permissionDeniedTitle": "Доступ запрещён",
+  "permissionDeniedBody": "Приложению нужен доступ к контактам, чтобы их показать.",
+  "permissionRequest": "Разрешить доступ",
+  "permissionPermanentlyDeniedBody": "Доступ запрещён навсегда. Включите его в настройках.",
+  "openSettings": "Открыть настройки",
+  "errorTitle": "Не удалось прочитать контакты",
+  "retry": "Повторить",
+  "contactDetails": "Информация о контакте",
+  "noPhone": "Нет телефона",
+  "noEmail": "Нет email",
+  "phonesSection": "Телефоны",
+  "emailsSection": "Email"
+}

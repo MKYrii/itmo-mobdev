@@ -34,14 +34,10 @@ class _CalculatorPageState extends State<CalculatorPage> with RestorationMixin {
   List<Calculation> get _items {
     final saved = _history.value;
     if (saved == null || saved.isEmpty) return [];
-    return saved
-        .split('\n')
-        .where((line) => line.contains('\t'))
-        .map((line) {
-          final parts = line.split('\t');
-          return Calculation(parts.first, parts.skip(1).join('\t'));
-        })
-        .toList();
+    return saved.split('\n').where((line) => line.contains('\t')).map((line) {
+      final parts = line.split('\t');
+      return Calculation(parts.first, parts.skip(1).join('\t'));
+    }).toList();
   }
 
   void _saveHistory(List<Calculation> items) {
@@ -71,8 +67,10 @@ class _CalculatorPageState extends State<CalculatorPage> with RestorationMixin {
           break;
         case '⌫':
           if (_expression.value.isNotEmpty) {
-            _expression.value =
-                _expression.value.substring(0, _expression.value.length - 1);
+            _expression.value = _expression.value.substring(
+              0,
+              _expression.value.length - 1,
+            );
           }
           break;
         case '=':
@@ -118,7 +116,11 @@ class _CalculatorPageState extends State<CalculatorPage> with RestorationMixin {
     }
     final number = match.group(0)!;
     final changed = number.startsWith('-') ? number.substring(1) : '-$number';
-    _expression.value = expression.replaceRange(match.start, match.end, changed);
+    _expression.value = expression.replaceRange(
+      match.start,
+      match.end,
+      changed,
+    );
   }
 
   void _percent() {
@@ -151,15 +153,14 @@ class _CalculatorPageState extends State<CalculatorPage> with RestorationMixin {
 
   @override
   Widget build(BuildContext context) {
-    final landscape = MediaQuery.orientationOf(context) == Orientation.landscape;
+    final landscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 28,
         title: const Text('Калькулятор', style: TextStyle(fontSize: 16)),
       ),
-      body: SafeArea(
-        child: landscape ? _buildLandscape() : _buildPortrait(),
-      ),
+      body: SafeArea(child: landscape ? _buildLandscape() : _buildPortrait()),
     );
   }
 
@@ -233,9 +234,11 @@ class _CalculatorPageState extends State<CalculatorPage> with RestorationMixin {
           ),
           const Spacer(),
           if (_lastResult.value != null)
-            Text('Ответ: ${_lastResult.value}',
-                textAlign: TextAlign.right,
-                style: const TextStyle(color: Colors.blueGrey, fontSize: 14)),
+            Text(
+              'Ответ: ${_lastResult.value}',
+              textAlign: TextAlign.right,
+              style: const TextStyle(color: Colors.blueGrey, fontSize: 14),
+            ),
           SingleChildScrollView(
             reverse: true,
             scrollDirection: Axis.horizontal,
@@ -250,9 +253,11 @@ class _CalculatorPageState extends State<CalculatorPage> with RestorationMixin {
             ),
           ),
           if (_error.value != null)
-            Text(_error.value!,
-                textAlign: TextAlign.right,
-                style: const TextStyle(color: Colors.red, fontSize: 12)),
+            Text(
+              _error.value!,
+              textAlign: TextAlign.right,
+              style: const TextStyle(color: Colors.red, fontSize: 12),
+            ),
         ],
       ),
     );
@@ -263,17 +268,21 @@ class _CalculatorPageState extends State<CalculatorPage> with RestorationMixin {
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
       child: Column(
         children: keys
-            .map((row) => Expanded(
-                  child: Row(
-                    children: row
-                        .map((key) => Expanded(
-                              child: key.isEmpty
-                                  ? const SizedBox.shrink()
-                                  : _buildKey(key),
-                            ))
-                        .toList(),
-                  ),
-                ))
+            .map(
+              (row) => Expanded(
+                child: Row(
+                  children: row
+                      .map(
+                        (key) => Expanded(
+                          child: key.isEmpty
+                              ? const SizedBox.shrink()
+                              : _buildKey(key),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            )
             .toList(),
       ),
     );
@@ -305,14 +314,18 @@ class _CalculatorPageState extends State<CalculatorPage> with RestorationMixin {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Text('История',
-              style: TextStyle(color: _navy, fontWeight: FontWeight.w600)),
+          child: Text(
+            'История',
+            style: TextStyle(color: _navy, fontWeight: FontWeight.w600),
+          ),
         ),
         Expanded(
           child: items.isEmpty
               ? const Center(
-                  child: Text('Вычислений пока нет',
-                      style: TextStyle(color: Colors.blueGrey)),
+                  child: Text(
+                    'Вычислений пока нет',
+                    style: TextStyle(color: Colors.blueGrey),
+                  ),
                 )
               : ListView.builder(
                   itemCount: items.length,
@@ -320,9 +333,15 @@ class _CalculatorPageState extends State<CalculatorPage> with RestorationMixin {
                     final item = items[index];
                     return ListTile(
                       dense: true,
-                      title: Text(item.expression, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      trailing: Text('= ${item.result}',
-                          style: const TextStyle(color: _blue)),
+                      title: Text(
+                        item.expression,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Text(
+                        '= ${item.result}',
+                        style: const TextStyle(color: _blue),
+                      ),
                       onTap: () => _selectHistory(item),
                     );
                   },
@@ -333,21 +352,38 @@ class _CalculatorPageState extends State<CalculatorPage> with RestorationMixin {
   }
 
   Widget _buildKey(String key) {
-    final isAction = const {'C', '⌫', '(', ')', '÷', '%', '×', '±', '-', '+', 'M+'}
-        .contains(key);
+    final isAction = const {
+      'C',
+      '⌫',
+      '(',
+      ')',
+      '÷',
+      '%',
+      '×',
+      '±',
+      '-',
+      '+',
+      'M+',
+    }.contains(key);
     final isEquals = key == '=';
     return Padding(
       padding: const EdgeInsets.all(4),
       child: FilledButton(
         style: FilledButton.styleFrom(
-          backgroundColor: isEquals ? _navy : (isAction ? const Color(0xFFDCE6F0) : Colors.white),
+          backgroundColor: isEquals
+              ? _navy
+              : (isAction ? const Color(0xFFDCE6F0) : Colors.white),
           foregroundColor: isEquals ? Colors.white : _navy,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           padding: EdgeInsets.zero,
         ),
         onPressed: () => _press(key),
-        child: Text(key,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
+        child: Text(
+          key,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+        ),
       ),
     );
   }

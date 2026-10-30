@@ -1,0 +1,26 @@
+{
+  "@@locale": "en",
+  "appTitle": "Contacts",
+  "searchHint": "Search by name",
+  "sortAsc": "A → Z",
+  "sortDesc": "Z → A",
+  "foundCount": "{count, plural, =0{No contacts found} =1{1 contact found} other{{count} contacts found}}",
+  "@foundCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "noContacts": "No contacts in the address book",
+  "noSearchResults": "Nothing found",
+  "loading": "Loading…",
+  "permissionDeniedTitle": "Access denied",
+  "permissionDeniedBody": "The app needs access to your contacts to show them.",
+  "permissionRequest": "Grant access",
+  "permissionPermanentlyDeniedBody": "Access was permanently denied. Please enable it in settings.",
+  "openSettings": "Open settings",
+  "errorTitle": "Failed to read contacts",
+  "retry": "Retry",
+  "contactDetails": "Contact details",
+  "noPhone": "No phone",
+  "noEmail": "No email",
+  "phonesSection": "Phones",
+  "emailsSection": "Emails"
+}
